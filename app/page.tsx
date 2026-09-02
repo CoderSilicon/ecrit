@@ -54,10 +54,22 @@ export default function Home() {
     return loaded;
   });
   const idRef = useRef(getMaxId(loadCards()) + 1);
+  const [webmcpAvailable, setWebmcpAvailable] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(document.modelContext);
+  });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
   }, [cards]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = window.setTimeout(() => {
+      setWebmcpAvailable(Boolean(document.modelContext));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const addCard = useCallback(() => {
     const id = idRef.current++;
@@ -369,7 +381,11 @@ export default function Home() {
       </main>
 
       <div className="mt-8">
-        <PromptBar currentBoard={boardSummary} onAgentTool={handleAgentTool} />
+        <PromptBar
+          currentBoard={boardSummary}
+          onAgentTool={handleAgentTool}
+          webmcpAvailable={webmcpAvailable}
+        />
       </div>
     </div>
   );

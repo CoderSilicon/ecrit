@@ -6,6 +6,7 @@ import type { Card } from "../types";
 interface PromptBarProps {
   currentBoard: Card[];
   onAgentTool(tool: string, args: Record<string, unknown>): void;
+  webmcpAvailable: boolean;
 }
 
 interface AgentResponse {
@@ -13,7 +14,7 @@ interface AgentResponse {
   error?: string;
 }
 
-export default function PromptBar({ currentBoard, onAgentTool }: PromptBarProps) {
+export default function PromptBar({ currentBoard, onAgentTool, webmcpAvailable }: PromptBarProps) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,17 +72,30 @@ export default function PromptBar({ currentBoard, onAgentTool }: PromptBarProps)
           {success}
         </p>
       )}
-      <form onSubmit={handleSubmit} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+      {!webmcpAvailable && (
+        <p className="rounded-xl border border-[#f3d5d5] bg-[#fdf5f5] px-4 py-3 text-sm text-[#c25555]">
+          webmcp not found — AI assistant is disabled.
+        </p>
+      )}
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3"
+      >
         <span className="shrink-0 text-base">🌱</span>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder='Ask your assistant — e.g. "add a note about dinner ideas"'
-          className="flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-muted/50"
+          disabled={!webmcpAvailable}
+          placeholder={
+            webmcpAvailable
+              ? 'Ask your assistant — e.g. "add a note about dinner ideas"'
+              : "AI assistant is disabled"
+          }
+          className="flex-1 bg-transparent text-sm text-text outline-none placeholder:text-text-muted/50 disabled:cursor-not-allowed disabled:opacity-40"
         />
         <button
           type="submit"
-          disabled={busy || !value.trim()}
+          disabled={!webmcpAvailable || busy || !value.trim()}
           className="shrink-0 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/85 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "Thinking…" : "Send"}
