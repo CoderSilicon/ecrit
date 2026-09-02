@@ -116,11 +116,60 @@ export default function Home() {
           );
           return { success: true, message: "Note updated" };
         }
+        case "delete_card": {
+          const cardId = Number(args.cardId);
+          const target = cards.find((c) => c.id === cardId);
+          const label = target ? `"${target.title}"` : `#${cardId}`;
+          if (!window.confirm(`Delete note ${label}?`)) {
+            return { success: false, message: "Cancelled" };
+          }
+          setCards((prev) => prev.filter((c) => c.id !== cardId));
+          return { success: true, message: "Note deleted" };
+        }
+        case "rename_card": {
+          const cardId = Number(args.cardId);
+          const title = String(args.title ?? "");
+          setCards((prev) =>
+            prev.map((c) => (c.id === cardId ? { ...c, title: title.trim() || "Untitled" } : c))
+          );
+          return { success: true, message: "Note renamed" };
+        }
+        case "search_cards": {
+          const query = String(args.query ?? "").toLowerCase();
+          if (!query) return { success: false, message: "No query provided" };
+          const matches = cards.filter(
+            (c) =>
+              c.title.toLowerCase().includes(query) ||
+              c.content.toLowerCase().includes(query)
+          );
+          return {
+            success: true,
+            message: `Found ${matches.length} note${matches.length !== 1 ? "s" : ""}`,
+            results: matches.map((c) => ({
+              id: c.id,
+              title: c.title,
+              content: c.content.slice(0, 120),
+              status: c.status,
+            })),
+          };
+        }
+        case "get_board_summary": {
+          return {
+            success: true,
+            message: `${cards.length} note${cards.length !== 1 ? "s" : ""} on board`,
+            board: cards.map((c) => ({
+              id: c.id,
+              title: c.title,
+              content: c.content.slice(0, 120),
+              status: c.status,
+            })),
+          };
+        }
         default:
           return { success: false, message: "Unknown tool" };
       }
     },
-    []
+    [cards]
   );
 
   // Handler for the local agent prompt bar (ignore the JSON status return).
@@ -191,6 +240,56 @@ export default function Home() {
           required: ["cardId", "content"],
         },
         execute: (args) => runTool("update_markdown", args),
+      },
+      {
+        name: "delete_card",
+        description:
+          "Permanently delete a note card from the board. Requires user confirmation before deletion.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cardId: { type: "number", description: "Numeric id of the card to delete." },
+          },
+          required: ["cardId"],
+        },
+        execute: (args) => runTool("delete_card", args),
+      },
+      {
+        name: "rename_card",
+        description:
+          "Change the title of an existing note card.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cardId: { type: "number", description: "Numeric id of the card to rename." },
+            title: { type: "string", description: "New title for the note." },
+          },
+          required: ["cardId", "title"],
+        },
+        execute: (args) => runTool("rename_card", args),
+      },
+      {
+        name: "search_cards",
+        description:
+          "Search notes by a keyword. Returns matching cards with id, title, content preview, and status.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Keyword to search for in titles and content." },
+          },
+          required: ["query"],
+        },
+        execute: (args) => runTool("search_cards", args),
+      },
+      {
+        name: "get_board_summary",
+        description:
+          "Return the full board state: all notes with their id, title, content preview, and status.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+        execute: (args) => runTool("get_board_summary", args),
       },
     ];
 

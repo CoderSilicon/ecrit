@@ -125,7 +125,7 @@ export default function Card({
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") commitContent();
           }}
-          className="min-h-[120px] w-full rounded-xl border border-accent bg-accent-light/20 p-4 text-sm text-text outline-none placeholder:text-text-muted/50"
+          className="min-h-30 w-full rounded-xl border border-accent bg-accent-light/20 p-4 text-sm text-text outline-none placeholder:text-text-muted/50"
           style={{ fontFamily: "var(--font-serif)" }}
           placeholder="Write your note..."
           spellCheck={false}

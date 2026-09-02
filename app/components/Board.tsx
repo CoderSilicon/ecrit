@@ -43,7 +43,7 @@ export default function Board({
               </span>
             </header>
 
-            <div className="flex min-h-[200px] flex-1 flex-col gap-4">
+            <div className="flex min-h-50 flex-1 flex-col gap-4">
               {colCards.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-border py-12">
                   <p className="text-sm text-text-muted">No notes here yet</p>
