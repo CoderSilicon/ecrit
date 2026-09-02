@@ -7,24 +7,6 @@ import type { Card, Status } from "./types";
 import Image from "next/image";
 import logo from "@/public/logo.svg";
 
-interface WebMCPTool {
-  name: string;
-  description: string;
-  inputSchema: {
-    type: "object";
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-  execute(args: Record<string, unknown>): unknown | Promise<unknown>;
-}
-
-interface ModelContextLike {
-  registerTool?(
-    tool: WebMCPTool,
-    opts?: { signal?: AbortSignal }
-  ): Promise<void> | void;
-}
-
 const INITIAL: Card[] = [
   {
     id: 1,
@@ -47,9 +29,35 @@ const INITIAL: Card[] = [
   },
 ];
 
+const STORAGE_KEY = "ecrit-cards";
+const registeredTools = new Set<string>();
+
+function loadCards(): Card[] {
+  if (typeof window === "undefined") return INITIAL;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return INITIAL;
+}
+
+function getMaxId(cards: Card[]): number {
+  return cards.reduce((max, c) => Math.max(max, c.id), 0);
+}
+
 export default function Home() {
-  const [cards, setCards] = useState<Card[]>(INITIAL);
-  const idRef = useRef(4);
+  const [cards, setCards] = useState<Card[]>(() => {
+    const loaded = loadCards();
+    return loaded;
+  });
+  const idRef = useRef(getMaxId(loadCards()) + 1);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+  }, [cards]);
 
   const addCard = useCallback(() => {
     const id = idRef.current++;
@@ -183,131 +191,140 @@ export default function Home() {
   // Tool registration for WebMCP (Chrome DevTools "Tools" tab).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!("modelContext" in navigator)) return;
 
-    const mc = (navigator as unknown as { modelContext?: ModelContextLike })
-      .modelContext;
-    if (!mc || typeof mc.registerTool !== "function") return;
+    const mc = document.modelContext;
+    if (!mc) return;
 
-    const tools: WebMCPTool[] = [
-      {
-        name: "create_task_card",
-        description:
-          "Create a new note card and add it to the board. status is one of: todo, in-progress, done (defaults to todo).",
-        inputSchema: {
-          type: "object",
-          properties: {
-            title: { type: "string", description: "Short title of the note." },
-            content: { type: "string", description: "Markdown body of the note." },
-            status: {
-              type: "string",
-              enum: ["todo", "in-progress", "done"],
-              description: "Column to place the note in.",
-            },
-          },
-          required: ["title", "content"],
-        },
-        execute: (args) => runTool("create_task_card", args),
-      },
-      {
-        name: "move_card",
-        description:
-          "Move an existing note card to a different column. targetColumn is one of: todo, in-progress, done.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cardId: { type: "number", description: "Numeric id of the card to move." },
-            targetColumn: {
-              type: "string",
-              enum: ["todo", "in-progress", "done"],
-              description: "Column to move the card into.",
-            },
-          },
-          required: ["cardId", "targetColumn"],
-        },
-        execute: (args) => runTool("move_card", args),
-      },
-      {
-        name: "update_markdown",
-        description:
-          "Replace the markdown body content of an existing note card with new content.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cardId: { type: "number", description: "Numeric id of the card to edit." },
-            content: { type: "string", description: "New markdown body content." },
-          },
-          required: ["cardId", "content"],
-        },
-        execute: (args) => runTool("update_markdown", args),
-      },
-      {
-        name: "delete_card",
-        description:
-          "Permanently delete a note card from the board. Requires user confirmation before deletion.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cardId: { type: "number", description: "Numeric id of the card to delete." },
-          },
-          required: ["cardId"],
-        },
-        execute: (args) => runTool("delete_card", args),
-      },
-      {
-        name: "rename_card",
-        description:
-          "Change the title of an existing note card.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            cardId: { type: "number", description: "Numeric id of the card to rename." },
-            title: { type: "string", description: "New title for the note." },
-          },
-          required: ["cardId", "title"],
-        },
-        execute: (args) => runTool("rename_card", args),
-      },
-      {
-        name: "search_cards",
-        description:
-          "Search notes by a keyword. Returns matching cards with id, title, content preview, and status.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: { type: "string", description: "Keyword to search for in titles and content." },
-          },
-          required: ["query"],
-        },
-        execute: (args) => runTool("search_cards", args),
-      },
-      {
-        name: "get_board_summary",
-        description:
-          "Return the full board state: all notes with their id, title, content preview, and status.",
-        inputSchema: {
-          type: "object",
-          properties: {},
-        },
-        execute: (args) => runTool("get_board_summary", args),
-      },
-    ];
-
-    const controllers: AbortController[] = [];
-
-    for (const tool of tools) {
-      const controller = new AbortController();
-      controllers.push(controller);
-      try {
-        mc.registerTool(tool, { signal: controller.signal });
-      } catch {
-        // Tool may already be registered; ignore duplicates.
+    const registered = registeredTools;
+    const register = (
+      name: string,
+      tool: {
+        name: string;
+        description: string;
+        inputSchema: Record<string, unknown>;
+        execute: (input: Record<string, unknown>) => unknown;
       }
-    }
-
-    return () => {
-      for (const c of controllers) c.abort();
+    ) => {
+      if (registered.has(name)) return;
+      registered.add(name);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mc.registerTool as (t: any) => void)(tool);
     };
+
+    register("create_task_card", {
+      name: "create_task_card",
+      description:
+        "Create a new note card and add it to the board. status is one of: todo, in-progress, done (defaults to todo).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short title of the note." },
+          content: { type: "string", description: "Markdown body of the note." },
+          status: {
+            type: "string",
+            enum: ["todo", "in-progress", "done"],
+            description: "Column to place the note in.",
+          },
+        },
+        required: ["title", "content"],
+      },
+      execute: async (input: Record<string, unknown>) =>
+        runTool("create_task_card", input),
+    });
+
+    register("move_card", {
+      name: "move_card",
+      description:
+        "Move an existing note card to a different column. targetColumn is one of: todo, in-progress, done.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          cardId: { type: "number", description: "Numeric id of the card to move." },
+          targetColumn: {
+            type: "string",
+            enum: ["todo", "in-progress", "done"],
+            description: "Column to move the card into.",
+          },
+        },
+        required: ["cardId", "targetColumn"],
+      },
+      execute: async (input: Record<string, unknown>) =>
+        runTool("move_card", input),
+    });
+
+    register("update_markdown", {
+      name: "update_markdown",
+      description:
+        "Replace the markdown body content of an existing note card with new content.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          cardId: { type: "number", description: "Numeric id of the card to edit." },
+          content: { type: "string", description: "New markdown body content." },
+        },
+        required: ["cardId", "content"],
+      },
+      execute: async (input: Record<string, unknown>) =>
+        runTool("update_markdown", input),
+    });
+
+    register("delete_card", {
+      name: "delete_card",
+      description:
+        "Permanently delete a note card from the board. Requires user confirmation before deletion.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          cardId: { type: "number", description: "Numeric id of the card to delete." },
+        },
+        required: ["cardId"],
+      },
+      execute: async (input: Record<string, unknown>) =>
+        runTool("delete_card", input),
+    });
+
+    register("rename_card", {
+      name: "rename_card",
+      description:
+        "Change the title of an existing note card.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          cardId: { type: "number", description: "Numeric id of the card to rename." },
+          title: { type: "string", description: "New title for the note." },
+        },
+        required: ["cardId", "title"],
+      },
+      execute: async (input: Record<string, unknown>) =>
+        runTool("rename_card", input),
+    });
+
+    register("search_cards", {
+      name: "search_cards",
+      description:
+        "Search notes by a keyword. Returns matching cards with id, title, content preview, and status.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Keyword to search for in titles and content." },
+        },
+        required: ["query"],
+      },
+      execute: async (input: Record<string, unknown>) =>
+        runTool("search_cards", input),
+    });
+
+    register("get_board_summary", {
+      name: "get_board_summary",
+      description:
+        "Return the full board state: all notes with their id, title, content preview, and status.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+      },
+      execute: async (input: Record<string, unknown>) =>
+        runTool("get_board_summary", input),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

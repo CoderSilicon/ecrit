@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
 import Card from "./Card";
 import type { Card as CardType, Status } from "../types";
 
@@ -24,10 +25,26 @@ export default function Board({
   onDelete,
   onUpdateTitle,
 }: BoardProps) {
+  const colCardsByStatus = useMemo(() => {
+    const map: Record<Status, CardType[]> = { todo: [], "in-progress": [], done: [] };
+    for (const c of cards) map[c.status].push(c);
+    return map;
+  }, [cards]);
+
+  const makeHandlers = useCallback(
+    (card: CardType) => ({
+      onSave: (content: string) => onSaveContent(card, content),
+      onMove: (status: Status) => onMove(card, status),
+      onDelete: () => onDelete(card.id),
+      onUpdateTitle: (title: string) => onUpdateTitle(card, title),
+    }),
+    [onSaveContent, onMove, onDelete, onUpdateTitle]
+  );
+
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
       {COLUMNS.map((col) => {
-        const colCards = cards.filter((c) => c.status === col.key);
+        const colCards = colCardsByStatus[col.key];
         return (
           <section
             key={col.key}
@@ -49,16 +66,19 @@ export default function Board({
                   <p className="text-sm text-text-muted">No notes here yet</p>
                 </div>
               ) : (
-                colCards.map((card) => (
-                  <Card
-                    key={card.id}
-                    card={card}
-                    onSave={(content) => onSaveContent(card, content)}
-                    onMove={(status) => onMove(card, status)}
-                    onDelete={() => onDelete(card.id)}
-                    onUpdateTitle={(title) => onUpdateTitle(card, title)}
-                  />
-                ))
+                colCards.map((card) => {
+                  const h = makeHandlers(card);
+                  return (
+                    <Card
+                      key={card.id}
+                      card={card}
+                      onSave={h.onSave}
+                      onMove={h.onMove}
+                      onDelete={h.onDelete}
+                      onUpdateTitle={h.onUpdateTitle}
+                    />
+                  );
+                })
               )}
             </div>
           </section>

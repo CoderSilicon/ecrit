@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { marked } from "marked";
 import type { Card as CardType } from "../types";
 
@@ -16,7 +16,7 @@ const STATUS_ORDER: CardType["status"][] = ["todo", "in-progress", "done"];
 
 marked.setOptions({ breaks: true, gfm: true });
 
-export default function Card({
+function Card({
   card,
   onSave,
   onMove,
@@ -33,6 +33,11 @@ export default function Card({
   const currentIndex = STATUS_ORDER.indexOf(card.status);
   const canMoveLeft = currentIndex > 0;
   const canMoveRight = currentIndex < STATUS_ORDER.length - 1;
+
+  const parsedHtml = useMemo(
+    () => (editing ? null : (marked.parse(card.content || " ") as string)),
+    [card.content, editing]
+  );
 
   function startEditing() {
     setDraft(card.content);
@@ -138,7 +143,7 @@ export default function Card({
           <div
             className="wmcp-markdown"
             dangerouslySetInnerHTML={{
-              __html: marked.parse(card.content || " ") as string,
+              __html: parsedHtml ?? "",
             }}
           />
           {!card.content && (
@@ -188,3 +193,5 @@ export default function Card({
     </div>
   );
 }
+
+export default memo(Card);

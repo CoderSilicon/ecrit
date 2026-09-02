@@ -23,14 +23,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${quicksand.variable} ${notoSerif.variable} h-full antialiased`}>
-      <head>
+      <body className="min-h-full flex flex-col bg-canvas text-text">
+        {children}
         <Script
           id="webmcp-polyfill"
+          strategy="afterInteractive"
           src="https://unpkg.com/@mcp-b/webmcp-polyfill@latest/dist/index.iife.js"
-          strategy="beforeInteractive"
         />
-      </head>
-      <body className="min-h-full flex flex-col bg-canvas text-text">{children}</body>
+      </body>
     </html>
   );
 }
