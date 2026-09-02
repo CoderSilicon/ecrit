@@ -15,7 +15,7 @@ import {
 
 export const runtime = "nodejs";
 
-const MODEL = "gemini-2.0-flash-exp";
+const MODEL = "gemini-3.6-flash";
 
 const ALLOWED_FUNCTION_NAMES = new Set([
   "create_task_card",
